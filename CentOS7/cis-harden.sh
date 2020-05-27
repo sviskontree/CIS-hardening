@@ -584,3 +584,102 @@ find /var/log -type f -exec chmod g-wx,o-rwx {} +
 
 #4.3 Ensure logrotate is configured... just some echo going on here
 echo "Verify your logrotate settings /etc/logrotate.conf and /etc/logrotate.d to avoid filling up the system logs"
+
+#5.1.1 Ensure cron daemon is enabled
+if [[ $(systemctl is-enabled crond 2>/dev/null) != "enabled" ]]; then
+        systemctl enable crond
+fi
+
+#5.1.2-7 Ensure permissions on certain files used by cron are configured
+chown root:root /etc/{crontab,cron.hourly,cron.daily,cron.weekly,cron.montly,cron.d,cron.allow,at.allow} 2>/dev/null
+chmod og-rwx /etc/{crontab,cron.hourly,cron.daily,cron.weekly,cron.monthly,cron.d,cron.allow,at.allow} 2>/dev/null
+
+#5.1.8 Ensure at/cron is restricted to authorized users
+rm -f /etc/{at,cron}.deny 2>/dev/null
+
+#5.2.1 Ensure permission on /etc/ssh/sshd_config
+chown root:root /etc/ssh/sshd_config
+chmod og-rwx /etc/ssh/sshd_config
+
+#5.2.2 Ensure SSH protocol is set to 2 
+if ! grep -q "^Protocol 2" /etc/ssh/sshd_config; then
+        sed -i "/^Protocol/g" /etc/ssh/sshd_config
+	echo "Protocol 2" >> /etc/ssh/sshd_config
+fi
+
+#5.2.3 Ensure SSH LogLevel is set to INFO
+if ! grep -q "^LogLevel INFO" /etc/ssh/sshd_config; then
+        sed -i "/^LogLevel/g" /etc/ssh/sshd_config
+        echo "LogLevel INFO" >> /etc/ssh/sshd_config
+fi
+
+#5.2.4 Ensure SSH X11 Forwarding is disabled
+if ! grep -q "^X11Forwarding no" /etc/ssh/sshd_config; then
+        sed -i "/^X11Forwarding/g" /etc/ssh/sshd_config
+        echo "X11Forwarding no" >> /etc/ssh/sshd_config
+fi
+
+#5.2.5 Ensure SSH MaxAuthTries is set to 4 or less
+if ! grep -qE "^MaxAuthTries [1-4]" /etc/ssh/sshd_config; then
+        sed -i "/^MaxAuthTries/g" /etc/ssh/sshd_config
+        echo "MaxAuthTries 4" >> /etc/ssh/sshd_config
+fi
+
+#5.2.6 Ensure SSH IgnoreRhosts is enabled
+if ! grep -q "^IgnoreRhosts yes" /etc/ssh/sshd_config; then
+        sed -i "/^IgnoreRhosts/g" /etc/ssh/sshd_config
+        echo "IgnoreRhosts yes" >> /etc/ssh/sshd_config
+fi
+
+#5.2.7 Ensure SSH HostbasedAuthentication is disabled
+if ! grep -q "^HostbasedAuthentication no" /etc/ssh/sshd_config; then
+	sed -i "/HostbasedAuthentication/g" /etc/sshd_config
+	echo "HostbasedAuthentication no" >> /etc/ssh/sshd_config
+fi
+
+#5.2.8 Ensure SSH root login is disabled
+if ! grep -q "^PermitRootLogin no" /etc/ssh/sshd_config; then
+        sed -i "/PermitRootLogin/g" /etc/sshd_config
+        echo "PermitRootLogin no" >> /etc/ssh/sshd_config
+fi
+
+#5.2.9 Ensure SSH PermitEmptyPasswords is disabled
+if ! grep -q "^PermitEmptyPasswords no" /etc/ssh/sshd_config 
+        sed -i "/PermitEmptyPasswords/g" /etc/sshd_config
+        echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config
+fi
+
+#5.2.10 Ensure SSH PermitUserEnvironment is disabled
+if ! grep -q "^PermitUserEnvironment no" /etc/sshd_config; then 
+        sed -i "/PermitUserEnvironment/g" /etc/sshd_config
+        echo "PermitUserEnvironment no" >> /etc/ssh/sshd_config
+fi
+
+#5.2.11 Ensure only approved MAC algorithms are used
+if ! grep -q "^MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" /etc/sshd_config; then
+	sed -i "/MACs/g" /etc/sshd_config
+	echo "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" >> /etc/sshd_config
+fi
+
+#5.2.12 Ensure SSH Idle Tiemout Interval is configured
+if ! grep -qE "^(ClientAliveInterval 300|ClientAliveCountMax 0)" /etc/ssh/sshd_config; then
+	sed -i "/ClientAliveInterval/g" /etc/ssh/sshd_config
+	sed -i "/ClientAliveCountMax/g" /etc/ssh/sshd_config
+	echo "ClientAliveInterval 300" >> /etc/ssh/sshd_config
+	echo "ClientAliveCountMax 0" >> /etc/ssh/sshd_config
+fi
+
+#5.2.13 Ensure SSH LoginGraceTime is set to one minute or less
+if ! grep -q "LoginGraceTime 60" /etc/ssh/sshd_config; then
+	sed -i "/LoginGraceTime/g" /etc/ssh/sshd_config
+	echo "LoginGraceTime 60" >> /etc/ssh/sshd_config
+fi
+
+#5.2.14 Ensure SSH access is limited, just echo a suggestion or two
+echo "SSH access should be limited, look into using AllowGroups and/or AllowUsers if possible"
+
+#5.2.15 Ensure SSH warning banner is configured
+if ! grep -q "^Banner /etc/issue.net" /etc/ssh/sshd_config; then
+	sed -i "/Banner/g" /etc/ssh/sshd_config
+	echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
+fi
