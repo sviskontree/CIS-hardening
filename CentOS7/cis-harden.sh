@@ -195,14 +195,14 @@ fi
 if [[ $(egrep '(\\v|\\r|\\m|\\s)' /etc/issue) ]]; then
 	echo "/etc/issue need fixing, adding temporary solution"
 	truncate -s 0 /etc/issue
-	echo "Authorized uses only. All activity may be monitored and reported." >> /etc/issue
+	echo "Authorized uses only. All activity will be monitored and reported." >> /etc/issue
 fi
 
 #1.7.1.3 Ensure remote login warning banner is configured properly
 if [[ $(egrep '(\\v|\\r|\\m|\\s)' /etc/issue.net) ]]; then
 	echo "/etc/issue.net need fixing, adding temporary solution"
 	truncate -s 0 /etc/issue.net
-	echo "Authorized uses only. All activity may be monitored and reported." >> /etc/issue.net
+	echo "Authorized uses only. All activity will be monitored and reported." >> /etc/issue.net
 fi
 
 #1.7.1.4,5,6 Ensure permission on /etc/{motd,issue,issue.net} are configured
@@ -633,32 +633,32 @@ fi
 
 #5.2.7 Ensure SSH HostbasedAuthentication is disabled
 if ! grep -q "^HostbasedAuthentication no" /etc/ssh/sshd_config; then
-	sed -i "/HostbasedAuthentication/g" /etc/sshd_config
+	sed -i "/HostbasedAuthentication/g" /etc/ssh/sshd_config
 	echo "HostbasedAuthentication no" >> /etc/ssh/sshd_config
 fi
 
 #5.2.8 Ensure SSH root login is disabled
 if ! grep -q "^PermitRootLogin no" /etc/ssh/sshd_config; then
-        sed -i "/PermitRootLogin/g" /etc/sshd_config
+        sed -i "/PermitRootLogin/g" /etc/ssh/sshd_config
         echo "PermitRootLogin no" >> /etc/ssh/sshd_config
 fi
 
 #5.2.9 Ensure SSH PermitEmptyPasswords is disabled
-if ! grep -q "^PermitEmptyPasswords no" /etc/ssh/sshd_config 
-        sed -i "/PermitEmptyPasswords/g" /etc/sshd_config
+if ! grep -q "^PermitEmptyPasswords no" /etc/ssh/sshd_config; then
+        sed -i "/PermitEmptyPasswords/g" /etc/ssh/sshd_config
         echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config
 fi
 
 #5.2.10 Ensure SSH PermitUserEnvironment is disabled
-if ! grep -q "^PermitUserEnvironment no" /etc/sshd_config; then 
-        sed -i "/PermitUserEnvironment/g" /etc/sshd_config
+if ! grep -q "^PermitUserEnvironment no" /etc/ssh/sshd_config; then 
+        sed -i "/PermitUserEnvironment/g" /etc/ssh/sshd_config
         echo "PermitUserEnvironment no" >> /etc/ssh/sshd_config
 fi
 
 #5.2.11 Ensure only approved MAC algorithms are used
-if ! grep -q "^MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" /etc/sshd_config; then
-	sed -i "/MACs/g" /etc/sshd_config
-	echo "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" >> /etc/sshd_config
+if ! grep -q "^MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" /etc/ssh/sshd_config; then
+	sed -i "/MACs/g" /etc/ssh/sshd_config
+	echo "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com" >> /etc/ssh/sshd_config
 fi
 
 #5.2.12 Ensure SSH Idle Tiemout Interval is configured
@@ -683,3 +683,81 @@ if ! grep -q "^Banner /etc/issue.net" /etc/ssh/sshd_config; then
 	sed -i "/Banner/g" /etc/ssh/sshd_config
 	echo "Banner /etc/issue.net" >> /etc/ssh/sshd_config
 fi
+
+#5.3.1,2,4
+for i in password-auth system-auth; do
+	#5.3.1 Ensure password creation requirements are configured
+	if ! grep "pam_pwquality.so" /etc/pam.d/$i | grep -qE "try_first_pass.*retry=3"; then
+		sed -ri  '/^password\s+requisite\s+pam_pwquality.so/d' /etc/pam.d/$i
+		sed -i '0,/^password/!b;//i password requisite pam_pwquality.so try_first_pass retry=3' /etc/pam.d/$i
+	fi
+	#5.3.2 Ensure lockout for failed password ttempts is configured
+        if ! grep -q "auth \[success=1 default=bad\] pam_unix.so" /etc/pam.d/$i; then
+                awk '/auth\s+sufficient\s+pam_unix.so/ { print; print "auth required pam_faillock.so preauth audit silent deny=5 unlock_time=900\nauth [success=1 default=bad] pam_unix.so\nauth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=900\nauth sufficient pam_faillock.so authsucc audit deny=5 unlock_time=900\n"; next }1' /etc/pam.d/$i > temp-$i && mv temp-$i /etc/pam.d/$i
+                #Assume the first pam_unix.so line can be removed
+                sed -i '0,/pam_unix.so/{//d;}' /etc/pam.d/$i
+        fi
+	#5.3.4  Ensure password hasing algo is SHA-512
+	if ! grep -qE "^password.*pam_unix\.so sha512" /etc/pam.d/$i; then
+		sed -ri '0,/^password.*pam_unix.so/{//d;}' /etc/pam.d/$i
+		sed -i '0,/pam_pwquality.so/!b;//a password sufficient pam_unix.so sha512' /etc/pam.d/$i
+		echo "User password hashing algo has been changed, all user ID's should be expired and forced to reset their passwords"
+        fi
+	cp -f /etc/pam.d/$i /etc/pam.d/${i}-ac
+done
+
+for i in "minlen = 14" "dcredit = -1" "ucredit = -1" "ocredit = -1" "lcredit = -1"; do
+	if ! grep -q "^$i" /etc/security/pwquality.conf; then
+		echo $i >> /etc/security/pwquality.conf
+	fi
+done
+
+#5.3.3 Ensure password reuse is limited - ignored
+#5.4.1.1 Ensure password expiration is 365 days or less - ignored
+#5.4.1.2 Ensure minimum days between password changes is 7 or more - ignored
+#5.4.1.3 Ensure password expiration warning days i 7 or more - ignored
+
+#5.4.1.4 Ensure inactive password lock is 30 days or less - changed to 90
+if [[ $(useradd -D | grep INACTIVE) != "90" ]]; then
+        useradd -D -f 90
+	for user in $(egrep ^[^:]+:[^\!*] /etc/shadow | cut -d: -f1 | grep -v root); do
+		chage --inactive 90 $user
+	done
+fi
+ 
+#5.4.1.5 Ensure all users last password change date is in the past - ignored
+
+#5.4.2 Ensure system accounts are non-login
+for user in $(awk -F: '($3 < 1000) && ($0 !~ /^root/) { print $1; }' /etc/passwd); do
+	usermod -L $user
+	if [[ "$user" =~ ^(sync|shutdown|halt)$ ]]; then
+		usermod -s /sbin/nologin $user 2>/dev/null
+	fi
+done
+
+#5.4.3 Ensure default group for the root account is GID 0
+if [[ $(grep "^root:" /etc/passwd | cut -f4 -d:) != "0" ]]; then
+	usermod -g 0 root
+fi
+
+#5.4.4 Ensure default user umask is 027 or more restrictive
+sed -ri 's/umask [0-9]{3}/umask 027/g' /etc/profile.d/*.sh
+sed -ri 's/umask [0-9]{3}/umask 027/g' /etc/bashrc
+sed -ri 's/umask [0-9]{3}/umask 027/g' /etc/profile
+
+#5.4.5 Ensure default user shell timeout is 900 seconds or less
+for i in bashrc profile; do
+	if ! grep -q "^TMOUT" /etc/$i; then
+		echo "TMOUT=900" >> /etc/$i
+	fi
+done
+
+#5.5 Ensure root login is restricted to system console - skipped, cause fudge ttys
+
+#5.6 Ensure Access to the sy command is restricted
+if ! grep -qE "^auth\s+required\s+pam_wheel.so use_uid" /etc/pam.d/su; then
+	sed -i '0,/pam_rootok.so/!b;//a auth required pam_wheel.so use_uid' /etc/pam.d/su	
+fi
+
+#Restorecon, yolo edition
+restorecon -r / 2>/dev/null 
