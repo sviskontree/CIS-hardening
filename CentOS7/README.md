@@ -1,6 +1,5 @@
-# Not complete
 Intended for servers but goes through all steps scored aswell as unscored and applies actions when applicable (and possible).
-Complete up until 6 System Maintenance
+Should be complete unless mentioned below
 
 ### Skipped 
 * 3.3.3 **Ensure IPv6 is disabled**
@@ -13,3 +12,5 @@ Complete up until 6 System Maintenance
 * 5.4.1.3 **Ensure password expiration warning days is 7 or more**, no forced password changes
 * 5.4.1.5 **Ensure all users last password change date is in the past**
 * 5.5 **Ensure root login is restricted to system console**, cause fudge going through a shitton of TTYs
+* 6.2.10 **Ensure users dot files are not group or world writeable**
+* 6.1.1 **Audit system file permissions**, unless there's an intern that has too much time to do it.

@@ -759,5 +759,124 @@ if ! grep -qE "^auth\s+required\s+pam_wheel.so use_uid" /etc/pam.d/su; then
 	sed -i '0,/pam_rootok.so/!b;//a auth required pam_wheel.so use_uid' /etc/pam.d/su	
 fi
 
+#6.1.1 Audit system file permissons - ignored, got other things to do than verifying permissions and files
+
+#6.1.2,4 Ensure permissions on certain files
+chown root:root /etc/{passwd,group,shadow,gshadow,passwd-,shadow-,group-,gshadow-}
+chmod 644 /etc/{passwd,group}
+
+#6.1.3,5 Ensure permissions on certain files
+chmod 000 /etc/{shadow,gshadow}
+
+#6.1.6,8 Ensure permissions on certain files are configured
+chmod u-x,go-wx /etc/{passwd-,group-}
+
+#6.1.7,9 Ensure permissions on certain files are configured
+chmod 000 /etc/{shadow-,gshadow-}
+
+#6.1.10 Ensure no world writeable files exist
+find / -xdev -type f -perm -0002 -exec chmod {} o-w \;
+
+#6.1.11 Ensure no unownwed files or directories exist
+find / -xdev -nouser -exec chown root {} \;
+
+#6.1.12 Ensure no ungrouped files or directories exist
+find / -xdev -nogroup -exec chgrp root {} \;
+
+#6.1.13 Audit SUID executables
+echo -e "\nReview the following files with SUID and ensure that they are legitimate"
+find / -xdev -type f -perm -4000
+
+#6.1.14 Audit SGID exectuables
+echo -e "\nReview the following files with SGID and ensure that they are legitimate"
+find / -xdev -type f -perm -2000
+
+#6.2.1 Ensure password fields are not empty
+for user in $(awk -F: '($3 > 999) { print $1; }' < /etc/passwd); do
+	if [[ $(grep "^$user" /etc/shadow | awk -F: '{ print $2 }') == "!!" ]]; then
+		if ! passwd -S $user | grep -q "Password locked."; then
+			passwd -l $user
+		fi
+	fi
+done
+
+#6.2.2 Ensure no legacy "+" entries exist in /etc/passwd
+for user in $(awk -F: '/^\+:/ {print $1}' < /etc/passwd); do
+	userdel $user
+done
+
+#6.2.3 Should be taken care of by 6.2.2 ^
+#6.2.4 Ensure no legacy "+" entries exist in /etc/group
+for group in $(awk -F: '/^\+:/ {print $1}' < /etc/group); do
+	groupdel $group
+done
+
+#6.2.5 Ensure root is the only UID 0 account
+for user in $(cat /etc/passwd | awk -F: '($3 == 0) { print $1 }'); do
+	if [[ "$user" != "root" ]]; then
+		echo "$user has uid 0, will be locked"
+		usermod -L $user
+	fi
+done
+
+#6.2.6 Ensure root path integrity, should have been covered
+#6.2.7-9,11-14 Ensure all users home directories exists, set permissions to 750 and set them to own their homes. Delete .forward, delete .netrc and delete .rhosts
+cat /etc/passwd | egrep -v '^(root|halt|sync|shutdown)' | awk -F: '($7 != "/sbin/nologin" && $7 != "/bin/false") { print $1 " "$6 }' | while read user dir; do
+	if [ ! -d "$dir" ]; then
+		mkdir -p $dir
+	fi
+	rm -f $dir/.{forward,netrc,rhosts}
+	chown $user:$user $dir
+	chmod 750 $dir
+done
+
+#6.2.10 Ensure users dot files are not group orworld writeable - skipped.
+#6.2.15 Ensure all groups in /etc/passwd exists in /etc/group
+for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do
+	if ! grep -q -P "^.*?:[^:]*:$i:" /etc/group; then
+		echo "Group $i is referenced by /etc/passwd but does not exist in /etc/group"
+	fi
+done
+
+#6.2.16 Ensure no duplicate UIDs exist
+cat /etc/passwd | cut -f3 -d":" | sort -n | uniq -c | while read x ; do
+	[ -z "${x}" ] && break
+	set - $x
+	if [ $1 -gt 1 ]; then
+		users=`awk -F: '($3 == n) { print $1 }' n=$2 /etc/passwd | xargs`
+		echo "Duplicate UID ($2): ${users}"
+	fi
+done
+
+#6.2.17 Ensure no duplicate GIDs exist
+cat /etc/group | cut -f3 -d":" | sort -n | uniq -c | while read x ; do
+	[ -z "${x}" ] && break
+	set - $x
+	if [ $1 -gt 1 ]; then
+		groups=`awk -F: '($3 == n) { print $1 }' n=$2 /etc/group | xargs`
+		echo "Duplicate GID ($2): ${groups}"
+	fi
+done
+
+#6.2.18 Ensure no duplicate user names exist
+cat /etc/passwd | cut -f1 -d":" | sort -n | uniq -c | while read x ; do
+	[ -z "${x}" ] && break
+	set - $x
+	if [ $1 -gt 1 ]; then
+		uids=`awk -F: '($1 == n) { print $3 }' n=$2 /etc/passwd | xargs`
+		echo "Duplicate User Name ($2): ${uids}"
+	fi
+done
+
+#6.2.19 Ensure no duplicate group names exist
+cat /etc/group | cut -f1 -d":" | sort -n | uniq -c | while read x ; do
+	[ -z "${x}" ] && break
+	set - $x
+	if [ $1 -gt 1 ]; then
+		gids=`gawk -F: '($1 == n) { print $3 }' n=$2 /etc/group | xargs`
+		echo "Duplicate Group Name ($2): ${gids}"
+	fi
+done
 #Restorecon, yolo edition
 restorecon -r / 2>/dev/null 
+echo -e "\nThe server should now be rebooted"
