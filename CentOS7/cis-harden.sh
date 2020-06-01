@@ -685,7 +685,7 @@ if ! grep -q "^Banner /etc/issue.net" /etc/ssh/sshd_config; then
 fi
 
 #5.3.1,2,4
-for i in password-auth system-auth; do
+for i in password-auth-ac system-auth-ac; do
 	#5.3.1 Ensure password creation requirements are configured
 	if ! grep "pam_pwquality.so" /etc/pam.d/$i | grep -qE "try_first_pass.*retry=3"; then
 		sed -ri  '/^password\s+requisite\s+pam_pwquality.so/d' /etc/pam.d/$i
