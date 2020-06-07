@@ -1,0 +1,7 @@
+fs.suid_dumpable = 0
+kernel.randomize_va_space = 2
+{% if (extra_sysctl is defined) and extra_sysctl %}
+{% for es in extra_sysctl %}
+{{ es.key }} = {{ es.value }}
+{% endfor %}
+{% endif %}

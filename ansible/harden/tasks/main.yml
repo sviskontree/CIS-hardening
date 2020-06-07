@@ -1,0 +1,5 @@
+- name: Add / Remove Certain packages
+  include_tasks: yum.yml
+
+- name: Import tasks 1.X
+  include_tasks: filesystem.yml

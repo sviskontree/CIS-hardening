@@ -1,0 +1,6 @@
+* hard core 0
+{% if (security_limits is defined) and security_limits %}
+{% for sl in security_limits %}
+{{ sl.domain }} {{ sl.type }} {{ sl.item }} {{ sl.value }}
+{% endfor %}
+{% endif %}

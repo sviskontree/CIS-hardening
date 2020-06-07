@@ -1,0 +1,27 @@
+remove_packages:
+  - prelink
+  - setroubleshoot
+  - mcstrans
+add_packages:
+  - aide
+  - libselinux
+modprobe_filesystems:
+  - cramfs
+  - freevxfs
+  - jffs2
+  - hfs
+  - hfsplus
+  - squashfs
+  - udf
+  - vfat
+required_partitions:
+  - /home
+  - /var
+  - /var/log
+  - /var/log/audit
+  - /tmp
+#The password should be removed and added to a vault (as below) or vars_prompt used
+#grub2_password: {{ vault_grub2_password }}
+grub2_password: changeme
+motd_message: "Temporary MOTD"
+issue_message: "Authorized uses only. All activity will be monitored and reported."

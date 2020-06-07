@@ -1,0 +1,247 @@
+- name: Add file to remove unneeded filesystems
+  template:
+    src: cis-modprobe-filesystem.j2
+    dest: /etc/modprobe.d/CIS.conf
+  register: cis_modprobe_filesystems
+
+- name: Remove the filesystems
+  shell: "rmmod {{ item }}"
+  with_items: "{{ modprobe_filesystems }}"
+  when: cis_modprobe_filesystems.changed
+  ignore_errors: true
+
+- name: Get all mounted partitions
+  shell: df -T | awk '/^\//{ print $1","$2","$NF }'
+  register: df_partitions
+  changed_when: false
+
+- name: Check separate partitions
+  fail:
+    msg: "{{ item.mountpoint }} not on a separate partiton"
+  with_items: "{{ required_partitions }}"
+  when: not df_partitions.stdout | regex_search("{0}(\s|$)".format(item))
+
+- name: Do changes to /tmp
+  block:
+    - name: Get device for tmp 
+      shell: awk '/\s\/tmp\s/{print $1}' < /etc/fstab
+      register: shell_tmp_device
+      changed_when: false
+
+    - name: Set fact for /tmp device
+      set_fact:
+        tmp_device: "{{ shell_tmp_device.stdout|trim }}"
+
+    - name: Check that correct options are set for /tmp
+      lineinfile:
+        path: /etc/fstab
+        regexp: "{{ tmp_device }}\\s+\\/tmp\\s+tmpfs\\s+defaults,nodev,nosuid,noexec\\s+0 0$"
+        line: "{{ tmp_device}} /tmp tmpfs defaults,nodev,nosuid,noexec 0 0"
+      register: tmp_fstab
+
+    - name: Remove old line
+      lineinfile:
+        path: /etc/fstab
+        regexp: "\\s+\\/tmp\\s+(tmpfs|xfs|ext4)\\s+defaults\\s+"
+        state: absent
+      when: tmp_fstab.changed
+
+    - name: Check that /var/tmp is binded to /tmp
+      lineinfile:
+        path: /etc/fstab
+        regexp: "\\/tmp\\s+\\/var\\/tmp\\s+none\\s+bind\\s+0 0"
+        line: "/tmp /var/tmp none bind 0 0"
+      register: var_tmp_fstab
+
+    - name: Remove old /var/tmp line if it exists
+      lineinfile:
+        path: /etc/fstab
+        regexp: "\\s+\\/var\\/tmp\\s+(?!none)\\w+\\s+"
+        state: absent
+      when: var_tmp_fstab.changed
+  when: "'/tmp' in required_partitions"
+
+- name: Do changes to home
+  block:
+    - name: Get device for home
+      shell: awk '/\s\/home\s/{print $1}' < /etc/fstab
+      register: shell_home_device
+      changed_when: false
+
+    - name: Get filesystem type for home
+      shell: awk '/\/home/{print $3}' < /etc/fstab
+      register: shell_home_filesystem
+      changed_when: false
+
+    - name: Set fact for /home device
+      set_fact:
+        home_device: "{{ shell_home_device.stdout|trim }}"
+        home_filesystem: "{{ shell_home_filesystem.stdout|trim }}"
+
+    - name: Check that correct options are set for /home
+      lineinfile:
+        path: /etc/fstab
+        regexp: "{{ home_device }}\\s+\\/home\\s+{{ home_filesystem }}\\s+defaults,nodev\\s+0 0$"
+        line: "{{ home_device}} /home {{ home_filesystem }} defaults,nodev 0 0"
+      register: home_fstab
+
+    - name: Remove old line
+      lineinfile:
+        path: /etc/fstab
+        regexp: "\\s+\\/home\\s+(xfs|ext4)\\s+defaults\\s+"
+        state: absent
+      when: home_fstab.changed
+  when: "'/home' in required_partitions"
+
+- name: Check options for /dev/shm
+  lineinfile:
+    path: /etc/fstab
+    regexp: "^tmpfs\\s+\\/dev\\/shm\\s+tmpfs\\s+defaults,nodev,nosuid,noexec\\s+0 0"
+    line: "tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0"
+  register: tmp_shm
+
+- name: Remove old /dev/shm line if it exiss
+  lineinfile:
+    path: /etc/fstab
+    regexp: "^(?!tmpfs)[a-zA-Z_\\/-]+\\s\\/dev\\/shm\\s+\\w+\\s(?!nosuid|noexec|nodev)defaults\\s+"
+    state: absent
+  when: tmp_shm.changed
+
+- name: Ensure sticky bit is set on all world-writeable directories
+  shell: find / -xdev -type d \( -perm -0002 -a ! -perm -1000 \) -exec chmod a+t {} \;
+  changed_when: false
+
+- name:
+  systemd:
+    name: autofs
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: ensure gpgcheck is configured globally activated
+  lineinfile:
+    path: /etc/fstab
+    regexp: "^gpgcheck\\s?=\\s?1$"
+    line: "gpgcheck=1"
+
+- name: check if aide.db.gz exists
+  stat:
+    path: /var/lib/aide/aide.db.gz
+  register: aide_db
+
+- name: generate aide db
+  shell: aide --init
+  when: aide_db.stat.exists == False
+  register: aide_generated
+
+- name: move aide db
+  command: mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+  when: aide_generated.changed
+
+- name: add crontab entry
+  cron:
+    user: root
+    name: aide_check
+    hour: "5"
+    minute: "0"
+    job: "/usr/sbin/aide --check"
+
+- name: Check if /boot/grub2/user.cfg exists
+  stat:
+    path: /boot/grub2/user.cfg
+  register: grub2_user_cfg
+
+- name: Run grub2-setpassword
+  shell: "printf '%s\n' '{{ grub2_password }}' '{{ grub2_password }}' | script -qf -c 'grub2-setpassword' /dev/null"
+  when: grub2_user_cfg.stat.exists == False
+  notify: generate grub
+  no_log: true
+
+- name: Ensure permissios on bootloader config
+  file:
+    owner: root
+    group: root
+    mode: 600
+    path: "{{ item }}"
+  with_items:
+    - /boot/grub2/grub.cfg
+    - /boot/grub2/user.cfg
+
+- name: Ensure authentication required for single user mode
+  lineinfile:
+    path: "/usr/lib/systemd/system/{{ item }}.service"
+    insertbefore: "Type="
+    regexp: '^ExecStart=-\\/bin\\/sh -c "\\/usr\\/sbin\\/sulogin; \\/usr\\/bin\\/systemctl --fail --no-block default"$'
+    line: 'ExecStart=-/bin/sh -c "/usr/sbin/sulogin; /usr/bin/systemctl --fail --no-block default"'
+  register: auth_single_user_mode
+  with_items:
+    - rescue
+    - emergency
+
+- name: Remove ExecStart
+  lineinfile:
+    path: "/usr/lib/systemd/system/{{ item }}.service"
+    regexp: "^ExecStart=-?((?!sulogin).)*$"
+    state: absent
+  when: auth_single_user_mode.changed
+  with_items:
+    - rescue
+    - emergency
+
+- name: Ensure core dumps are restricted
+  template:
+    src: cis-limits.conf.j2
+    dest: /etc/security/limits.d/10-cis.conf
+
+- name: sysctl settings
+  template:
+    src: cis-sysctl.conf.j2
+    dest: /etc/sysctl.d/10-cis.conf
+
+- name: Ensure selinux is not disabled in bootloader config
+  replace:
+    path: /boot/grub2/grub.cfg
+    regexp: "(enforcing|selinux)\\s?=\\s?0"
+    replace: ""
+  notify: generate grub
+
+- name: Ensure selinux state is enforcing
+  replace:
+    path: /etc/selinux/config
+    regexp: "^SELINUX\\s?=\\s?((?!enforcing).)*$"
+    replace: "SELINUX=enforcing"
+
+- name: Ensure selinux policy is configured
+  replace:
+    path: /etc/selinux/config
+    regexp: "^SELINUXTYPE\\s?=\\s?((?!targeted|mls).)*$"
+    replace: "SELINUXYPE=targeted"
+
+- name: Ensure no unconfined daemons exist
+  shell: "ps -eZ | egrep \"initrc\" | egrep -vw \"tr|ps|egrep|bash|awk\" | tr ':' ' ' | awk '{ print $NF }'"
+  register: unconfined_daemons
+  changed_when: false
+
+- name: Output unconfied daemons
+  debug:
+    msg: "Investigate the following unconfined daemons: {{ unconfined_daemons.stdout }}"
+  when: unconfined_daemons.stdout != ""
+
+- name: Copy motd
+  template:
+    src: motd.j2
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy issue + issue.net
+  template:
+    src: issue.j2
+    dest: "/etc/{{ item }}"
+    owner: root
+    group: root
+    mode: 0644
+  with_items:
+    - issue
+    - issue.net
