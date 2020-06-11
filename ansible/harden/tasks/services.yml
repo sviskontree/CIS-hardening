@@ -1,0 +1,27 @@
+- name: Ensure chrony is installed
+  yum:
+    name: chrony
+    state: present
+
+- name: Copy chrony.conf
+  template:
+    src: chrony.conf.j2
+    dest: /etc/chrony.conf
+    owner: root
+    group: chrony
+    mode: 0640
+  notify: restart chrony
+
+- name: Copy chronyd sysconfig
+  template:
+    src: chronyd.sysconfig.j2
+    dest: /etc/sysconfig/chronyd
+    mode: 0640
+  notify: restart chrony
+
+- name: Replace inet_interfaces in postfix conf
+  replace:
+    path: /etc/postfix/main.cf
+    regexp: "^inet_interfaces\\s+?=\\s+?((?!loopback-only).)*$"
+    replace: "inet_interfaces = loopback-only"
+  notify: restart postfix

@@ -1,0 +1,14 @@
+- name: Disable services
+  systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  ignore_errors: true
+  with_items: "{{ disable_systemd }}"
+
+- name: Enable services
+  systemd:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  with_items: "{{ enable_systemd }}"

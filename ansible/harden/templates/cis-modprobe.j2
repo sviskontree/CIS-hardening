@@ -1,0 +1,6 @@
+{% for mf in modprobe_filesystems %}
+install {{ mf }} /bin/true
+{% endfor %}
+{% for mn in modprobe_network %}
+install {{ mn }} /bin/true
+{% endfor %}

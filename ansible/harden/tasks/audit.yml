@@ -1,0 +1,39 @@
+- name: Do an initial reload of auditd
+  shell: "service auditd reload"
+
+- name: Copy auditd.conf
+  template:
+    src: auditd.conf.j2
+    dest: /etc/audit/auditd.conf
+    owner: root
+    group: root
+    mode: 0640
+
+- name: Ensure auditing for processes that start prior to auditd is enabled
+  lineinfile:
+    path: /etc/default/grub
+    backrefs: yes
+    regexp: '^GRUB_CMDLINE_LINUX="(.*.*)"$'
+    line: 'GRUB_CMDLINE_LINUX="\1 audit=1"'
+  notify: generate grub
+
+- name: Add auditd rules
+  template:
+    src: cis.rules.j2
+    dest: /etc/audit/rules.d/CIS.rules
+    owner: root
+    group: root
+    mode: 0640
+  notify: restart auditd
+
+- name: Copy rsyslog.conf
+  template:
+    src: rsyslog.conf.j2
+    dest: /etc/rsyslog.conf
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart rsyslog
+
+- name: Ensure permissions on all logfiles are configured
+  shell: "find /var/log -type f -exec chmod g-wx,o-rwx {} +"

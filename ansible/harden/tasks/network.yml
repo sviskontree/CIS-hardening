@@ -1,0 +1,75 @@
+- name: Copy hosts.allow
+  template:
+    src: hosts.allow.j2
+    dest: /etc/hosts.allow
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Copy hosts.deny
+  template:
+    src: hosts.deny.j2
+    dest: /etc/hosts.deny
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Block that triggers iptables actions
+  block:
+    - name: flush the tables
+      iptables:
+        chain: "{{ item }}"
+        flush: yes
+      with_items: 
+        - INPUT
+        - FORWARD
+        - OUTPUT
+
+    - name: allow in on lo
+      iptables:
+        chain: INPUT
+        jump: ACCEPT
+        in_interface: lo
+
+    - name: allow out on lo
+      iptables:
+        chain: OUTPUT
+        jump: ACCEPT
+        out_interface: lo
+
+    - name: block 127.0.0.0/8 on INPUT
+      iptables:
+        chain: INPUT
+        jump: DROP
+        source: 127.0.0.1/8
+
+    - name: Allow established and related
+      iptables:
+        chain: "{{ item }}"
+        jump: ACCEPT
+        ctstate: ESTABLISHED,RELATED
+      with_items:
+        - INPUT
+        - OUTPUT
+
+    - name: Allow inbound ssh
+      iptables:
+        chain: INPUT
+        jump: ACCEPT
+        ctstate: NEW
+        protocol: tcp
+        syn: match
+        destination_port: 22
+
+    - name: Set default policy for the chains
+      iptables:
+        chain: "{{ item }}"
+        policy: DROP
+      with_items:
+        - INPUT
+        - FORWARD
+        - OUTPUT
+
+    - name: save iptables rules
+      shell: "truncate -s 0 /etc/sysconfig/iptables && iptables-save > /etc/sysconfig/iptables"
+  when: iptables_modify

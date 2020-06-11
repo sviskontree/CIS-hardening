@@ -1,14 +1,8 @@
-- name: Add file to remove unneeded filesystems
+- name: Add file to remove unneeded modules
   template:
-    src: cis-modprobe-filesystem.j2
+    src: cis-modprobe.j2
     dest: /etc/modprobe.d/CIS.conf
   register: cis_modprobe_filesystems
-
-- name: Remove the filesystems
-  shell: "rmmod {{ item }}"
-  with_items: "{{ modprobe_filesystems }}"
-  when: cis_modprobe_filesystems.changed
-  ignore_errors: true
 
 - name: Get all mounted partitions
   shell: df -T | awk '/^\//{ print $1","$2","$NF }'
@@ -110,13 +104,6 @@
 - name: Ensure sticky bit is set on all world-writeable directories
   shell: find / -xdev -type d \( -perm -0002 -a ! -perm -1000 \) -exec chmod a+t {} \;
   changed_when: false
-
-- name:
-  systemd:
-    name: autofs
-    state: stopped
-    enabled: no
-  ignore_errors: true
 
 - name: ensure gpgcheck is configured globally activated
   lineinfile:

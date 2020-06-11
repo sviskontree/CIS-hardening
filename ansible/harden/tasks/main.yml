@@ -1,5 +1,20 @@
 - name: Add / Remove Certain packages
   include_tasks: yum.yml
 
-- name: Import tasks 1.X
+- name: Systemd related tasks
+  include_tasks: systemd.yml
+
+- name: Import tasks related to the filesystem
   include_tasks: filesystem.yml
+
+- name: Tasks related to services
+  include_tasks: services.yml
+
+- name: Network related tasks
+  include_tasks: network.yml
+
+- name: Audit and logging tasks
+  include_tasks: audit.yml
+
+- name: Access, Authentication and Authorization
+  include_tasks: aaa.yml

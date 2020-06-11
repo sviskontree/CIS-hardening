@@ -1,0 +1,172 @@
+- name: Ensure permissions on files
+  file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: og-rwx
+  with_items:
+    - "/etc/crontab"
+    - "/etc/cron.hourly"
+    - "/etc/cron.daily"
+    - "/etc/cron.weekly"
+    - "/etc/cron.monthly"
+    - "/etc/cron.d"
+
+- name: Make sure at and cron deny are absent
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "/etc/cron.deny"
+    - "/etc/at.deny"
+
+- name: Make sure at and cron allow exists with correct permissions
+  file:
+    path: "{{ item }}"
+    state: touch
+    owner: root
+    group: root
+    mode: "0600"
+  with_items:
+    - "/etc/cron.allow"
+    - "/etc/at.allow"
+
+- name: Copy sshd_config
+  template: 
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+  notify: restart sshd
+
+- name: Copy pwquality.conf
+  template:
+    src: pwquality.conf.j2
+    dest: /etc/security/pwquality.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy password-auth-ac
+  template:
+    src: password-auth-ac.j2
+    dest: /etc/pam.d/password-auth-ac
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy system-auth-ac
+  template:
+    src: system-auth-ac.j2
+    dest: /etc/pam.d/system-auth-ac
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Replace max pass age
+  replace:
+    path: /etc/login.defs 
+    regexp: "^PASS_MAX_DAYS\\s+\\d+$"
+    replace: "PASS_MAX_DAYS {{ password_max_age }}"
+  when: password_max_age is defined
+
+- name: Replace minimum days between password changes
+  replace:
+    path: /etc/login.defs
+    regexp: "^PASS_MIN_DAYS\\s+\\d+$"
+    replace: "PASS_MIN_DAYS {{ password_min_days }}"
+  when: password_min_days is defined
+
+- name: Replace days for password expiration days
+  replace:
+    path: /etc/login.defs
+    regexp: "^PASS_WARN_AGE\\s+\\d+$"
+    replace: "PASS_WARN_AGE {{ password_warning_age }}"
+  when: password_warning_age is defined
+
+- name: Replace inactive password lock
+  shell: "useradd -D -f {{ password_lock_days }}"
+  when: password_lock_days is defined
+
+#5.4.1.5 Ensure all users last password change date is in the past
+
+- name: Get system acounts that are able to login to an interactive shell
+  shell: "egrep -v \"^\\+\" /etc/passwd | awk -F: '($1!=\"root\" && $1!=\"sync\" && $1!=\"shutdown\" && $1!=\"halt\" && $3<1000 && $7!=\"/sbin/nologin\" && $7!=\"/bin/false\") {print $1}'"
+  register: system_accounts
+
+- name: Change shell for system accounts
+  shell: "usermod -s /sbin/nologin {{ item }}"
+  with_items: "{{ system_accounts.stdout_lines }}"
+  when: "{{ system_accounts.stdout_lines }}"
+
+- name: Ensure root's group is 0
+  user:
+    name: root
+    group: 0
+
+- name: Ensure default user umask is 027
+  replace:
+    path: "{{ item }}"
+    regexp: "(\\s+)umask\\s+\\d+$"
+    replace: "\\1 umask 027"
+  with_items:
+    - "/etc/bashrc"
+    - "/etc/profile"
+
+- name: Copy file to profile.d with umask
+  copy:
+    src: cis.sh
+    dest: /etc/profile.d/cis.sh
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Ensure default TMOUT line is 900
+  lineinfile:
+    path: "{{ item }}"
+    regexp: "^TMOUT=\\d+"
+    line: "TMOUT=900"
+  with_items:
+    - "/etc/bashrc"
+    - "/etc/profile"
+
+- name: Limit access to the su command
+  replace:
+    path: /etc/pam.d/su
+    regexp: "^#(auth\\s+required\\s+pam_wheel.so use_uid)$"
+    replace: "\\1"
+
+- name: Ensure permissions on files
+  file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.perm }}"
+  with_items:
+    - path: "/etc/passwd"
+      perm: "0644"
+    - path: "/etc/shadow"
+      perm: "0000"
+    - path: "/etc/group"
+      perm: "0644"
+    - path: "/etc/gshadow"
+      perm: "0000"
+    - path: "/etc/passwd-"
+      perm: "0644"
+    - path: "/etc/shadow-"
+      perm: "0000"
+    - path: "/etc/group-"
+      perm: "0644"
+    - path: "/etc/gshadow-"
+      perm: "0000"
+
+- name: Ensure no world writeable files exist
+  shell: "find / -xdev -type f -perm -0002 -exec chmod o-w {} \\;"
+
+- name: Ensure no unowned files or directories exist
+  shell: "find / -xdev -nouser -exec chown root {} \\;"
+
+- name: Ensure no ungrouped files or directories exist
+  shell: "find / -xdev -nogroup -exec chgrp root {} \\;"
+

@@ -2,9 +2,62 @@ remove_packages:
   - prelink
   - setroubleshoot
   - mcstrans
+  - xorg-x11*
+  - ypbind
+  - rsh
+  - talk
+  - telnet
+  - openldap-clients
+  - firewalld
 add_packages:
   - aide
   - libselinux
+  - chrony
+  - tcp_wrappers
+  - iptables-services
+  - audit
+  - rsyslog
+disable_systemd:
+  - autofs
+  - chargen-dgram
+  - chargen-stream
+  - daytime-dgram
+  - daytime-stream
+  - discard-dgram
+  - discard-stream
+  - echo-dgram
+  - echo-stream
+  - time-dgram
+  - time-stream
+  - tftp
+  - xinetd
+  - avahi-daemon
+  - cups
+  - dhcpd
+  - slapd
+  - nfs
+  - nfs-server
+  - rpcbind
+  - named
+  - vsftpd
+  - httpd
+  - dovecot
+  - smb
+  - squid
+  - snmpd
+  - ypserv
+  - rsh.socket
+  - rlogin.socket
+  - rexec.socket
+  - telnet.socket
+  - tfpt.socket
+  - rsyncd
+  - ntalk
+enable_systemd:
+  - auditd
+  - rsyslog
+  - iptables
+  - crond
 modprobe_filesystems:
   - cramfs
   - freevxfs
@@ -14,6 +67,11 @@ modprobe_filesystems:
   - squashfs
   - udf
   - vfat
+modprobe_network:
+  - dccp
+  - sctp
+  - rds
+  - tipc
 required_partitions:
   - /home
   - /var
@@ -25,3 +83,47 @@ required_partitions:
 grub2_password: changeme
 motd_message: "Temporary MOTD"
 issue_message: "Authorized uses only. All activity will be monitored and reported."
+iptables_modify: true
+audit_space_left_action: email
+audit_admin_space_left_action: halt
+audit_action_mail_acct: root
+audit_max_log_file_action: keep_logs
+audit_rules_time: true
+audit_rules_identity: true
+audit_rules_system_locale: true
+audit_rules_mac: true
+audit_rules_login: true
+audit_rules_dac: true
+audit_rules_file_access: true
+audit_rules_privileged_commands: true
+audit_rules_delete: true
+audit_immutable: true
+#rsyslog_forward:
+#  - logs: "*.*"
+#    protocol: "tcp"
+#    ip: "192.168.122.24"
+#    port: "514"
+ssh_x11_forwarding: "no"
+ssh_password_auth: "no"
+ssh_permit_empty_password: "no"
+ssh_permit_root_login: "no"
+ssh_max_auth_tries: 4
+ssh_ignore_rhosts: "yes"
+ssh_hostbased_auth: "no"
+ssh_permit_user_env: "no"
+ssh_macs: "hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com"
+ssh_client_alive_interval: "300"
+ssh_client_alive_count_max: "0"
+ssh_login_grace_time: "60"
+ssh_banner: "/etc/issue.net"
+pwquality_minlen: "14"
+pwquality_dcredit: "-1"
+pwquality_ucredit: "-1"
+pwquality_ocredit: "-1"
+pwquality_lcredit: "-1"
+pam_auth_options: "audit deny=5 unlock_time=900"
+#pam_pwhistory: true
+#password_max_age: 365
+#password_min_days: 7
+#password_warning_age: 7
+password_lock_days: 90
