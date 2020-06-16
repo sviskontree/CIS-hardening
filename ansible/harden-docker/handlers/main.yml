@@ -1,0 +1,9 @@
+- name:  restart audit
+  service:
+    name: auditd
+    state: restarted
+
+- name: restart docker
+  systemd:
+    name: docker
+    state: restarted

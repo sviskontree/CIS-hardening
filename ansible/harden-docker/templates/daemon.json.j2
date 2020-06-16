@@ -1,0 +1,16 @@
+#jinja2:lstrip_blocks: True
+{
+  "icc": {{ docker_icc|lower }},
+  "log-level": "{{ docker_log_level }}",
+  "storage-driver": "overlay2",
+  "userns-remap": "dockerremap:dockerremap",
+  "log-driver": "syslog",
+  "log-opts": {
+    "tag": "{% raw %}{{.ImageName}}/{{.Name}}/{{.ID}}{% endraw %}"
+  },
+  "live-restore": true,
+  "userland-proxy": false,
+  "experimental": {{ docker_experimental|lower }},
+  "no-new-privileges": true,
+  "selinux-enabled": true
+}

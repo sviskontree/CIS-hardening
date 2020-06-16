@@ -1,0 +1,1 @@
+The role harden does CIS hardening for docker, does up until section 5 which focuses more on the containers being started. These behaviours should be covered with auditd or an alternative such as falco

@@ -1,0 +1,122 @@
+- name: Get users in docker group
+  shell: getent group docker
+  register: docker_users
+
+- name: Output docker users
+  debug:
+    msg: "Verify that only trusted users are in the output {{ docker_users.stdout }}"
+
+- name: Copy docker audit rules
+  template:
+    src: auditd.conf.j2
+    dest: /etc/audit/rules.d/CIS-docker.rules
+    owner: root
+    group: root
+    mode: 0640
+  notify: restart audit
+  when: enable_auditd
+
+- name: Create docker user
+  user:
+    name: dockerremap
+
+- name: Add dockerremap line to subuid
+  lineinfile:
+    path: "/etc/{{ item }}"
+    regexp: "^dockerremap:231072:65536$"
+    line: "dockerremap:231072:65536"
+  with_items:
+    - subuid
+    - subgid
+
+- name: Create /etc/docker dir
+  file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Copy daemon.json
+  template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: 0644
+  notify: restart docker
+
+- name: Add sysctl file
+  file:
+    path: /etc/sysctl.d/20-cis-docker.conf
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Increase namespaces limit
+  lineinfile:
+    line: "user.max_user_namespaces=15000"
+    regexp: "^user.max_user_namespaces=15000$"
+    path: /etc/sysctl.d/20-cis-docker.conf
+
+- name: Get insecure registries
+  shell: "docker info --format 'Insecure Registries:{% raw %}{{.RegistryConfig.InsecureRegistryCIDRs}}{% endraw %}'"
+  register: docker_registries
+
+- name: Output insecure registries
+  debug:
+    msg: "Verify that only local secure registries are in use {{ docker_registries.stdout }}"
+
+- name: Ensure permissions on files
+  file:
+    path: "/usr/lib/systemd/system/docker.{{ item }}"
+    mode: '0644'
+    owner: root
+    group: root
+  with_items:
+    - service
+    - socket
+
+- name: Check if certs.d exists
+  stat:
+    path: /etc/docker/certs.d
+  register: docker_certs_d
+
+#Cheating 101
+- name: Ensure that registry certificate file o 
+  shell: "find /etc/docker/certs.d/ -type f -exec chown root:root {} \\;"
+  when: docker_certs_d.stat.isdir is defined and docker_certs_d.stat.isdir
+
+- name: Ensure that registry certificate file permissons are set to 444
+  shell : "find /etc/docker/certs.d/ -type f -exec chmod 444 {} \\;"
+  when: docker_certs_d.stat.isdir is defined and docker_certs_d.stat.isdir
+
+- name: TLS CA stuff
+  block:
+    - name: Set permissions for tls related files
+      file:
+        path: "{{ item }}"
+        owner: root
+        group: root
+        mode: '0444'
+      with_items:
+        - "{{ docker_tls_ca }}"
+        - "{{ docker_tls_cert }}"
+
+    - name: Set permissions for tls key
+      file:
+        path: "{{ docker_tls_key }}"
+        owner: root
+        group: root
+        mode: '0400'
+  when: docker_tls_ca is defined and docker_tls_cert is defined and docker_tls_key is defined
+
+- name: Ensure docker socket file perm
+  file:
+    path: /var/run/docker.sock
+    owner: root
+    group: docker
+    mode: 660

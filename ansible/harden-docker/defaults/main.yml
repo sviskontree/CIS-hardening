@@ -1,0 +1,5 @@
+docker_icc: false
+docker_log_level: "info"
+enable_auditd: true
+#This can be covered with falco for example
+docker_experimental: false
