@@ -1,0 +1,5 @@
+iptables_initial: true
+firewalld_default_zone: public
+firewalld_extra_service_rules: []
+firewalld_extra_port_rules: []
+firewalld_extra_rich_rules: []

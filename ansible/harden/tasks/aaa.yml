@@ -26,6 +26,8 @@
     state: touch
     owner: root
     group: root
+    modification_time: preserve
+    access_time: preserve
     mode: "0600"
   with_items:
     - "/etc/cron.allow"
@@ -85,15 +87,21 @@
     replace: "PASS_WARN_AGE {{ password_warning_age }}"
   when: password_warning_age is defined
 
+- name: Get inactive value
+  shell: "grep INACTIVE /etc/default/useradd | awk -F= '{print $NF}'"
+  register: password_inactive_value
+  changed_when: password_inactive_value.stdout != password_lock_days 
+
 - name: Replace inactive password lock
   shell: "useradd -D -f {{ password_lock_days }}"
-  when: password_lock_days is defined
+  when: password_lock_days is defined and password_inactive_value.stdout != password_lock_days
 
 #5.4.1.5 Ensure all users last password change date is in the past
 
 - name: Get system acounts that are able to login to an interactive shell
   shell: "egrep -v \"^\\+\" /etc/passwd | awk -F: '($1!=\"root\" && $1!=\"sync\" && $1!=\"shutdown\" && $1!=\"halt\" && $3<1000 && $7!=\"/sbin/nologin\" && $7!=\"/bin/false\") {print $1}'"
   register: system_accounts
+  changed_when: system_accounts.stdout != ""
 
 - name: Change shell for system accounts
   shell: "usermod -s /sbin/nologin {{ item }}"
@@ -108,7 +116,7 @@
 - name: Ensure default user umask is 027
   replace:
     path: "{{ item }}"
-    regexp: "(\\s+)umask\\s+\\d+$"
+    regexp: "(\\s+)umask\\s+027$"
     replace: "\\1 umask 027"
   with_items:
     - "/etc/bashrc"
@@ -161,12 +169,20 @@
     - path: "/etc/gshadow-"
       perm: "0000"
 
-- name: Ensure no world writeable files exist
-  shell: "find / -xdev -type f -perm -0002 -exec chmod o-w {} \\;"
+- name:
+  block:
+    - name: Ensure no world writeable files exist
+      shell: "find / -xdev -type f -perm -0002 -exec chmod o-w {} \\;"
+      register: ww_files
+      changed_when: ww_files.stdout != ""
 
-- name: Ensure no unowned files or directories exist
-  shell: "find / -xdev -nouser -exec chown root {} \\;"
+    - name: Ensure no unowned files or directories exist
+      shell: "find / -xdev -nouser -exec chown root {} \\;"
+      register: unowned_files
+      changed_when: unowned_files.stdout != ""
 
-- name: Ensure no ungrouped files or directories exist
-  shell: "find / -xdev -nogroup -exec chgrp root {} \\;"
-
+    - name: Ensure no ungrouped files or directories exist
+      shell: "find / -xdev -nogroup -exec chgrp root {} \\;"
+      register: ungrouped_files
+      changed_when: ungrouped_files.stdout != ""
+  when: run_slow_tasks

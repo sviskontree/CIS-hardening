@@ -1,0 +1,47 @@
+- name: Make sure firewalld is installed
+  yum:
+    name: firewalld
+    state: present
+
+- name: Get default zone
+  shell: "firewall-cmd --get-default-zone"
+  register: fw_default_zone
+  when: fw_default_zone.stdout != firewalld_default_zone
+
+- name: Set default zone
+  shell: "firewall-cmd --set-default-zone={{ firewalld_default_zone }}"
+  when: fw_default_zone.stdout != firewalld_default_zone
+
+- name: Add extra firewalld service rules
+  firewalld:
+    service: "{{ item.rule }}"
+    zone: "{{ item.zone }}"
+    state: "{{ item.state | default('enabled') }}"
+    permanent: "{{ item.permanent | default('yes') }}"
+  with_items: "{{ firewalld_extra_service_rules }}"
+  notify: reload firewalld
+
+- name: Add extra firewalld port rules
+  firewalld:
+    port: "{{ item.rule }}"
+    zone: "{{ item.zone }}"
+    state: "{{ item.state | default('enabled') }}"
+    permanent: "{{ item.permanent | default('yes') }}"
+  with_items: "{{ firewalld_extra_port_rules }}"
+  notify: reload firewalld
+
+- name: add extra firewalld rich rules
+  firewalld:
+    rich_rule: "{{ item.rule }}"
+    zone: "{{ item.zone }}"
+    state: "{{ item.state | default('enabled') }}"
+    permanent: "{{ item.permanent | default('yes') }}"
+  with_items: "{{ firewalld_extra_rich_rules }}"
+  notify: reload firewalld
+
+- name: Ensure firewalld is enabled and started
+  systemd:
+    name: firewalld
+    state: started
+    enabled: true
+

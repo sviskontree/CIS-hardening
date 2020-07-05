@@ -1,0 +1,5 @@
+- name: save iptables rules
+  shell: "truncate -s 0 /etc/sysconfig/iptables && iptables-save > /etc/sysconfig/iptables"
+
+- name: reload firewalld
+  shell: firewall-cmd --reload

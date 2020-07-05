@@ -1,0 +1,14 @@
+audit_space_left_action: email
+audit_admin_space_left_action: halt
+audit_action_mail_acct: root
+audit_max_log_file_action: keep_logs
+audit_rules_time: true
+audit_rules_identity: true
+audit_rules_system_locale: true
+audit_rules_mac: true
+audit_rules_login: true
+audit_rules_dac: true
+audit_rules_file_access: true
+audit_rules_privileged_commands: true
+audit_rules_delete: true
+audit_immutable: true

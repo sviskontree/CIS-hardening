@@ -1,0 +1,17 @@
+remove_packages:
+  - prelink
+  - setroubleshoot
+  - mcstrans
+  - xorg-x11*
+  - ypbind
+  - rsh
+  - talk
+  - telnet
+  - openldap-clients
+add_packages:
+  - aide
+  - libselinux
+  - chrony
+  - tcp_wrappers
+  - audit
+  - rsyslog

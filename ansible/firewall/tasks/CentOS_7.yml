@@ -1,0 +1,2 @@
+- name: include tasks for iptables
+  include_tasks: iptables.yml

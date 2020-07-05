@@ -105,9 +105,9 @@
   shell: find / -xdev -type d \( -perm -0002 -a ! -perm -1000 \) -exec chmod a+t {} \;
   changed_when: false
 
-- name: ensure gpgcheck is configured globally activated
+- name: ensure gpgcheck is globally activated
   lineinfile:
-    path: /etc/fstab
+    path: /etc/yum.conf
     regexp: "^gpgcheck\\s?=\\s?1$"
     line: "gpgcheck=1"
 

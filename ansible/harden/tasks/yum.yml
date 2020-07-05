@@ -8,7 +8,7 @@
     name: "{{ add_packages }}"
     state: present
 
-- name: Add all the latesr security packages
+- name: Add all the latest security packages
   yum:
     name: "*"
     state: latest

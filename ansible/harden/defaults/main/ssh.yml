@@ -1,0 +1,13 @@
+ssh_x11_forwarding: "no"
+ssh_password_auth: "no"
+ssh_permit_empty_password: "no"
+ssh_permit_root_login: "no"
+ssh_max_auth_tries: 4
+ssh_ignore_rhosts: "yes"
+ssh_hostbased_auth: "no"
+ssh_permit_user_env: "no"
+ssh_macs: "hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com"
+ssh_client_alive_interval: "300"
+ssh_client_alive_count_max: "0"
+ssh_login_grace_time: "60"
+ssh_banner: "/etc/issue.net"

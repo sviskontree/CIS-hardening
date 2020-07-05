@@ -11,10 +11,8 @@
     name: postfix
     state: restarted
 
-- name: restart auditd
-  service:
-    name: auditd
-    state: restarted
+- name: reload auditd
+  shell: service auditd reload
 
 - name: restart rsyslog
   systemd:
